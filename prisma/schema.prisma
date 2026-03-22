@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum ItemType {
+  message
+  file
+}
+
+enum EventAction {
+  login
+  logout
+  upload_message
+  upload_file
+  download_file
+  view_item
+  delete_item
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  sessions     Session[]
+}
+
+model Session {
+  id             String    @id @default(cuid())
+  adminUserId    String
+  tokenHash      String    @unique
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+  lastAccessedAt DateTime  @default(now())
+  adminUser      AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+}
+
+model DeviceInfo {
+  id                String        @id @default(cuid())
+  sourceIp          String?
+  userAgent         String?
+  deviceType        String?
+  deviceVendor      String?
+  deviceModel       String?
+  browserName       String?
+  browserVersion    String?
+  osName            String?
+  osVersion         String?
+  tailscaleUser     String?
+  tailscaleLogin    String?
+  tailscaleNode     String?
+  tailscaleTailnet  String?
+  itemRecords       Item[]
+  accessEvents      AccessEvent[]
+  createdAt         DateTime      @default(now())
+}
+
+model Item {
+  id           String         @id @default(cuid())
+  type         ItemType
+  title        String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  deletedAt    DateTime?
+  deletedNote  String?
+  deviceInfoId String?
+  message      MessageContent?
+  fileAsset    FileAsset?
+  deviceInfo   DeviceInfo?    @relation(fields: [deviceInfoId], references: [id], onDelete: SetNull)
+  accessEvents AccessEvent[]
+
+  @@index([type, createdAt])
+  @@index([deletedAt])
+}
+
+model MessageContent {
+  id          String   @id @default(cuid())
+  itemId       String   @unique
+  content      String
+  logFilePath  String
+  item         Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+}
+
+model FileAsset {
+  id              String   @id @default(cuid())
+  itemId           String   @unique
+  originalFilename String
+  storedFilename   String
+  storedPath       String   @unique
+  mimeType         String?
+  extension        String?
+  sizeBytes        BigInt
+  sha256           String?
+  item             Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+}
+
+model AccessEvent {
+  id           String      @id @default(cuid())
+  action       EventAction
+  itemId        String?
+  deviceInfoId  String?
+  detail        String?
+  createdAt     DateTime    @default(now())
+  item          Item?       @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  deviceInfo    DeviceInfo? @relation(fields: [deviceInfoId], references: [id], onDelete: SetNull)
+
+  @@index([action, createdAt])
+  @@index([itemId])
+}
